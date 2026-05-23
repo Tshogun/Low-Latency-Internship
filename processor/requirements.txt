@@ -1,0 +1,6 @@
+fastapi
+google-cloud-storage
+pandas
+pyarrow
+uvicorn[standard]
+google-cloud-bigquery
