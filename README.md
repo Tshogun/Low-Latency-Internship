@@ -1,14 +1,42 @@
-# 🏥 Healthcare Analytics Pipeline on GCP
+# Healthcare Analytics Pipeline on GCP
 
-A cloud-native, event-driven healthcare data pipeline built on Google Cloud Platform (GCP) that ingests healthcare data, processes and transforms it into Parquet format, loads it into BigQuery, performs automated deduplication, and visualizes analytics using Looker Studio.
+A cloud-native, event-driven healthcare analytics platform built on Google Cloud Platform (GCP) for ingesting, processing, transforming, deduplicating, and analyzing healthcare data at scale.
+
+The system combines data lake architecture, metadata-driven processing, serverless compute, automated deduplication, and BI dashboards into a single end-to-end pipeline.
 
 ---
 
-# 🚀 Project Overview
+# Problem Statement
 
-This project demonstrates a modern data engineering architecture using:
+Healthcare organizations generate large volumes of semi-structured data from multiple systems such as patient registration, lab systems, EMRs, and operational workflows.
 
-- Google Cloud Storage (Data Lake)
+This data often suffers from:
+
+- Duplicate records
+- Inconsistent schemas
+- Poor data quality
+- Lack of centralized analytics
+- Manual processing overhead
+- Difficulty scaling ingestion pipelines
+
+The goal of this project was to build a scalable and maintainable cloud-native data platform capable of:
+
+- Ingesting healthcare datasets in near real-time
+- Automatically validating and transforming incoming data
+- Storing optimized analytical formats (Parquet)
+- Loading data into a warehouse for querying
+- Performing automated deduplication
+- Supporting metadata-driven schema evolution
+- Enabling analytics dashboards for business users
+- Allowing non-technical users to manage schema updates through a UI
+
+---
+
+# Project Overview
+
+This project implements an event-driven ETL/ELT architecture using:
+
+- Google Cloud Storage
 - Eventarc
 - Cloud Run
 - FastAPI
@@ -17,50 +45,86 @@ This project demonstrates a modern data engineering architecture using:
 - Cloud Functions
 - Cloud Scheduler
 - Looker Studio
+- Nuxt.js Metadata Management UI
 
-The pipeline is metadata-driven, scalable, event-triggered, and production-oriented.
+The pipeline is designed to be:
+
+- Serverless
+- Metadata-driven
+- Scalable
+- Extensible
+- Production-oriented
 
 ---
 
-# 🏗️ Architecture
+# Architecture
 
 ```text
-API / Manual Upload
-        ↓
-GCS Bucket (raw/)
-        ↓
-Eventarc Trigger
-        ↓
-Cloud Run (FastAPI Processor)
-        ↓
-GCS Bucket (processed/ Parquet)
-        ↓
-BigQuery Raw Tables
-        ↓
-Cloud Function (Deduplication)
-        ↓
-BigQuery Latest Tables
-        ↓
-Looker Studio Dashboard
+                ┌──────────────────────────┐
+                │  API / Manual Upload     │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │  GCS Raw Data Lake       │
+                │  raw/...                 │
+                └────────────┬─────────────┘
+                             │
+                    Eventarc Trigger
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ Cloud Run Processor      │
+                │ FastAPI + Pandas         │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ Processed Parquet Layer  │
+                │ processed/...            │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ BigQuery Raw Tables      │
+                │ *_raw                    │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ Cloud Function           │
+                │ Deduplication Engine     │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ BigQuery Latest Tables   │
+                │ *_latest                 │
+                └────────────┬─────────────┘
+                             │
+                             ▼
+                ┌──────────────────────────┐
+                │ Looker Studio Dashboard  │
+                └──────────────────────────┘
 ```
 
 ---
 
-# ☁️ GCP Services Used
+# GCP Services Used
 
 | Service | Purpose |
 |---|---|
-| Cloud Storage | Raw + Processed data lake |
-| Eventarc | Event-driven triggers |
-| Cloud Run | File processing service |
-| BigQuery | Data warehouse |
-| Cloud Functions | Automated deduplication |
-| Cloud Scheduler | Scheduled orchestration |
-| Looker Studio | Analytics dashboard |
+| Cloud Storage | Raw and processed data lake |
+| Eventarc | Event-driven orchestration |
+| Cloud Run | Data processing service |
+| BigQuery | Analytical warehouse |
+| Cloud Functions | Deduplication processing |
+| Cloud Scheduler | Automated orchestration |
+| Looker Studio | Visualization layer |
 
 ---
 
-# 📂 Project Structure
+# Project Structure
 
 ```text
 healthcare-pipeline/
@@ -79,14 +143,17 @@ healthcare-pipeline/
 │   └── patient/
 │       └── v1.json
 │
+├── metadata-ui/
+│   └── Nuxt.js application
+│
 └── README.md
 ```
 
 ---
 
-# 📦 Cloud Storage Layout
+# Cloud Storage Layout
 
-Bucket Name:
+Bucket:
 
 ```text
 pipeline-data-lake-hlc
@@ -106,11 +173,11 @@ processed/patient/YYYY/YYYY-MM/*.parquet
 
 ---
 
-# ⚙️ Processing Pipeline
+# Processing Pipeline
 
-## Step 1 — Upload Raw Data
+## Step 1 — Data Upload
 
-Data is uploaded via API or manually into:
+Healthcare datasets are uploaded manually or through APIs into:
 
 ```text
 gs://pipeline-data-lake-hlc/raw/
@@ -125,24 +192,16 @@ Supported formats:
 
 ## Step 2 — Eventarc Trigger
 
-A new object upload triggers Eventarc.
-
-Eventarc invokes the Cloud Run service automatically.
+Every file upload event automatically triggers the processing pipeline through Eventarc.
 
 ---
 
 ## Step 3 — Cloud Run Processing
 
-Service Name:
+Service:
 
 ```text
 healthcare-processor
-```
-
-Region:
-
-```text
-us-central1
 ```
 
 Runtime:
@@ -151,47 +210,44 @@ Runtime:
 Python + FastAPI
 ```
 
-### Responsibilities
+The processor performs:
 
-- Read raw files from GCS
-- Convert to Pandas DataFrame
-- Standardize column names
-- Deduplicate records using `patient_id`
-- Clean and normalize fields
-- Calculate age
-- Add processing metadata
-- Convert data to Parquet
-- Upload Parquet back to GCS
-- Load data into BigQuery
+- File ingestion
+- Schema normalization
+- Data validation
+- Deduplication
+- Data enrichment
+- Parquet conversion
+- BigQuery loading
 
 ---
 
-# 🧹 Data Cleaning & Enrichment
+# Data Cleaning & Enrichment
 
-The processor performs:
+The processor standardizes incoming healthcare data using Pandas transformations.
 
 ## Cleaning
 
-- Normalize column names
-- Remove duplicates
-- Standardize names
-- Convert timestamps
-- Convert date fields
+- Standardized column names
+- Duplicate removal
+- Datatype normalization
+- Timestamp parsing
+- Name formatting
 
 ## Enrichment
 
-Additional fields generated:
+Additional derived fields:
 
 | Field | Description |
 |---|---|
-| processed_timestamp | Processing time |
-| age | Calculated from DOB |
-| quality_score | Basic data quality metric |
-| source_file | Original source file |
+| processed_timestamp | ETL processing timestamp |
+| age | Calculated from date_of_birth |
+| quality_score | Data quality metric |
+| source_file | Source object path |
 
 ---
 
-# 🪣 BigQuery Layer
+# BigQuery Warehouse
 
 Dataset:
 
@@ -199,25 +255,27 @@ Dataset:
 healthcare_analytics
 ```
 
-## Raw Table
+## Raw Tables
+
+Example:
 
 ```text
 patient_v1_raw
 ```
 
-Raw data from Parquet files is loaded into BigQuery.
+Raw processed Parquet files are loaded into BigQuery.
 
 ---
 
-# 🧠 Metadata-Driven Architecture
+# Metadata-Driven Architecture
 
-Schemas are managed dynamically using metadata.
+One of the core design goals of the project was reducing hardcoded pipeline logic.
 
-## registry.json
+Schemas, primary keys, partitioning, clustering, and deduplication rules are managed dynamically using metadata JSON files.
 
-Tracks datasets and active schema versions.
+---
 
-Example:
+# Registry Example
 
 ```json
 {
@@ -232,7 +290,7 @@ Example:
 
 ---
 
-## Schema Definition Example
+# Dataset Schema Example
 
 ```json
 {
@@ -241,6 +299,10 @@ Example:
   "primary_key": ["patient_id"],
   "deduplication": {
     "order_by": "created_at"
+  },
+  "bigquery": {
+    "partition_field": "created_at",
+    "cluster_fields": ["patient_id"]
   },
   "fields": {
     "patient_id": "string",
@@ -255,17 +317,38 @@ Example:
 
 ---
 
-# 🔁 Deduplication Pipeline
+# Metadata Management UI (Nuxt.js)
 
-Deduplication is implemented using:
+To make the platform usable for non-technical users, a metadata management UI was built using Nuxt.js.
 
-- Cloud Function
-- BigQuery SQL
-- Metadata-driven logic
+The UI allows users to:
 
-## Dedup Logic
+- Create new dataset schemas
+- Update field definitions
+- Configure primary keys
+- Define deduplication logic
+- Configure BigQuery partitioning/clustering
+- Manage schema versions
+- Update registry mappings
 
-Uses:
+This removes the need for manually editing JSON files inside GCS and makes the platform more accessible to analysts and operations teams.
+
+---
+
+# Deduplication Pipeline
+
+A dedicated Cloud Function performs scheduled deduplication.
+
+The function:
+
+- Reads metadata definitions
+- Dynamically generates SQL
+- Applies deduplication logic
+- Creates analytics-ready tables
+
+---
+
+# Deduplication Logic
 
 ```sql
 ROW_NUMBER() OVER (
@@ -274,23 +357,25 @@ ROW_NUMBER() OVER (
 )
 ```
 
-Keeps only the latest record.
+The latest record per patient is retained.
 
 ---
 
-## Output Table
+# Output Tables
+
+Example:
 
 ```text
 patient_v1_latest
 ```
 
-This becomes the analytics-ready table.
+These tables are used directly for analytics and dashboards.
 
 ---
 
-# ⏰ Scheduling
+# Scheduling
 
-Cloud Scheduler triggers the deduplication Cloud Function daily.
+Cloud Scheduler triggers the deduplication function daily.
 
 Example:
 
@@ -304,25 +389,26 @@ gcloud scheduler jobs create http dedup-daily \
 
 ---
 
-# 📊 Analytics Layer
+# Analytics Layer
 
-Looker Studio is connected to:
+Looker Studio connects directly to:
 
 ```text
 patient_v1_latest
 ```
 
-## Dashboard Metrics
+Dashboards include:
 
-- Total Patients
-- Gender Distribution
-- Age Distribution
-- Data Quality Score
-- Records Over Time
+- Total patient count
+- Gender distribution
+- Age distribution
+- Data quality trends
+- Record growth over time
+- Latest patient activity
 
 ---
 
-# 🧪 Example Queries
+# Example Queries
 
 ## Raw Data
 
@@ -331,6 +417,8 @@ SELECT *
 FROM `gcp-data-piepline.healthcare_analytics.patient_v1_raw`
 LIMIT 100;
 ```
+
+---
 
 ## Deduplicated Data
 
@@ -342,7 +430,7 @@ LIMIT 100;
 
 ---
 
-# 🚀 Deployment
+# Deployment
 
 ## Deploy Cloud Run Processor
 
@@ -355,7 +443,7 @@ gcloud run deploy healthcare-processor \
 
 ---
 
-## Deploy Dedup Cloud Function
+## Deploy Deduplication Function
 
 ```bash
 gcloud functions deploy dedup-runner \
@@ -368,9 +456,9 @@ gcloud functions deploy dedup-runner \
 
 ---
 
-# 🔐 IAM Roles Used
+# IAM Roles Used
 
-Required roles include:
+Key IAM permissions:
 
 - BigQuery Data Editor
 - BigQuery Job User
@@ -380,69 +468,59 @@ Required roles include:
 
 ---
 
-# 📈 Future Improvements
+# Future Improvements
 
-Potential enhancements:
+Potential next steps:
 
-- Incremental deduplication using MERGE
-- Data quality monitoring
-- Multi-dataset support
-- CI/CD with GitHub Actions
-- Terraform infrastructure
+- Incremental MERGE-based deduplication
+- Data quality monitoring dashboards
+- CI/CD pipelines
+- Terraform infrastructure provisioning
+- Schema evolution workflows
 - Data lineage tracking
-- Schema evolution automation
-- Monitoring & alerting
+- Real-time streaming ingestion
+- Monitoring and alerting
 
 ---
 
-# 🎯 Key Engineering Concepts Demonstrated
+# Key Engineering Concepts Demonstrated
 
 - Event-driven architecture
-- Cloud-native data engineering
+- Serverless data engineering
 - Metadata-driven pipelines
-- Data lake + warehouse design
+- Data lake + warehouse architecture
+- Automated orchestration
+- Cloud-native ETL
 - Parquet optimization
 - BigQuery analytics
-- Automated orchestration
-- Scalable ETL processing
+- Self-service schema management
 
 ---
 
-# 🛠️ Tech Stack
+# Tech Stack
 
 | Category | Technology |
 |---|---|
 | Backend | Python, FastAPI |
 | Data Processing | Pandas, PyArrow |
+| Frontend | Nuxt.js |
 | Storage | Google Cloud Storage |
 | Compute | Cloud Run |
 | Warehouse | BigQuery |
-| Scheduling | Cloud Scheduler |
 | Deduplication | Cloud Functions |
+| Scheduling | Cloud Scheduler |
 | Visualization | Looker Studio |
 
 ---
 
-# 📚 Learning Outcomes
+# Learning Outcomes
 
 This project demonstrates practical implementation of:
 
+- Modern ETL/ELT pipelines
+- Event-driven cloud systems
 - Data lake architecture
-- ETL/ELT workflows
-- Event-driven processing
-- Schema management
-- Data warehousing
-- Analytical dashboards
-- Production-oriented GCP services
-
----
-
-# 👨‍💻 Author
-
-Built as a hands-on cloud data engineering project using Google Cloud Platform.
-
----
-
-# ⭐ If You Found This Useful
-
-Feel free to fork, improve, and build upon this architecture.
+- Metadata-driven engineering
+- BigQuery optimization
+- Analytical dashboarding
+- Production-grade GCP workflows
